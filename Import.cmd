@@ -1,0 +1,1 @@
+python3 -m pip install tkinter pandas matplotlib numpy fpdf openpyxl
