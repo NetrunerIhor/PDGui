@@ -198,14 +198,6 @@ class DataLoaderApp:
 
         self.mainmenu.add_command(label="Довідка", command=self.open_help_window)
         
-        #self.report_button = tk.Button(root, text="Створити звіт", command=self.create_report, state="disabled")
-        #self.report_button.grid(row=5, column=1,)
-
-        #self.plot_button = tk.Button(self.root, text="Побудувати графік", command=self.plot_selected_columns)
-        #self.plot_button.grid(row=4, column=1,)
-
-        #self.apply_widget_styles()
-    
     def setup_processing_widgets(self):
         """
         Створює віджети для обробки даних у головному вікні.
@@ -246,8 +238,6 @@ class DataLoaderApp:
         self.plot_button = tk.Button(self.processing_frame, text="Побудувати графік", command=self.plot_selected_columns)
         self.plot_button.grid(row=4, column=1,sticky="w")
         
-        #self.root.grid_rowconfigure(2, weight=1)
-        #self.processing_frame.grid_columnconfigure(1, weight=1)
 
     def setup_processing_widgets_data_loadet(self):
 
@@ -389,17 +379,10 @@ class DataLoaderApp:
             self.update_table()
             self.report_button.config(state="normal")
             self.setup_processing_widgets_data_loadet()
-            #self.open_processing_window()
-            #self.process_button.config(state="normal")
 
         except Exception as e:
             messagebox.showerror("Помилка", f"Не вдалося завантажити файл: {e}")
     
-
-        # Розтягнення рамки обробки даних
-        #self.root.grid_rowconfigure(2, weight=1)
-        #processing_frame.grid_columnconfigure(1, weight=1)
-
     def filter_data(self, column, condition_str):
         """
         Виклик фільтрації даних через DataProcessor.
@@ -415,7 +398,6 @@ class DataLoaderApp:
             filtered_data = self.processor.filter_data(column, condition)
             self.data = filtered_data
             self.processor = DataProcessor(self.data)
-            messagebox.showinfo("Успіх", "Дані відфільтровано!")
         except Exception as e:
             messagebox.showerror("Помилка", f"Не вдалося застосувати фільтрацію: {e}")
 
@@ -628,33 +610,40 @@ class DataLoaderApp:
 
         self.plot_preview_widget = None
 
-        preview_button = tk.Button(plot_window, text="Попередній перегляд", command=lambda: create_plot( preview_only=True))
+        preview_button = tk.Button(
+            plot_window,
+            text="Попередній перегляд",
+            command=lambda: self.create_plot(
+                x_column=x_combo.get(),
+                y_column=y_combo.get(),
+                plot_type=plot_type_combo.get(),
+                limit=int(limit_entry.get()),
+                preview_canvas=preview_canvas,
+                preview_only=True,
+            ),
+        )
         preview_button.grid(row=5, column=0, pady=10, padx=5, sticky="ew")
 
-        # Кнопка для побудови графіка
-        plot_button = tk.Button(plot_window, text="Побудувати графік", command=lambda: create_plot())
+        plot_button = tk.Button(
+            plot_window,
+            text="Побудувати графік",
+            command=lambda: self.create_plot(
+                x_column=x_combo.get(),
+                y_column=y_combo.get(),
+                plot_type=plot_type_combo.get(),
+                limit=int(limit_entry.get()),
+            ),
+        )
         plot_button.grid(row=5, column=1, pady=10, padx=5, sticky="ew")
 
-        self.update_widget_style()
+        plot_window.grid_rowconfigure(4, weight=1)  # Рядок з Canvas
+        plot_window.grid_columnconfigure(1, weight=1)
 
-        def create_plot(preview_only=False):
-            """
-            Створює графік із можливістю попереднього перегляду.
-            """
-            # Отримання параметрів
-            x_column = x_combo.get()
-            y_column = y_combo.get()
-            plot_type = plot_type_combo.get()
-            try:
-                limit = int(limit_entry.get())
-            except ValueError:
-                messagebox.showwarning("Увага", "Будь ласка, введіть правильне число для кількості елементів!")
-                return
-
-            if not x_column or not y_column:
-                messagebox.showwarning("Увага", "Будь ласка, оберіть всі параметри!")
-                return
-
+    def create_plot(self, x_column, y_column, plot_type, limit, preview_canvas=None, preview_only=False):
+        """
+        Створює графік із можливістю попереднього перегляду або відображення.
+        """
+        try:
             # Вибір даних для побудови
             data_limited = self.data.iloc[:limit]
 
@@ -664,78 +653,58 @@ class DataLoaderApp:
 
             # Якщо стовпець не числовий, рахуємо кількість повторень
             if not x_is_numeric:
-                # Створення словника для підрахунку повторів
-                count_dict = {}
-                for value in data_limited[x_column]:
-                    if value not in count_dict:
-                        # Якщо елемент ще не був зустрінутим, рахуємо його повторення
-                        count_dict[value] = (data_limited[x_column] == value).sum()
-                
-                # Створюємо DataFrame з результатами
+                count_dict = {value: (data_limited[x_column] == value).sum() for value in data_limited[x_column]}
                 data_limited = pd.DataFrame(list(count_dict.items()), columns=[x_column, "Кількість"])
                 x_column = x_column
                 y_column = "Кількість"
 
             if not y_is_numeric:
-                count_dict = {}
-                for value in data_limited[y_column]:
-                    if value not in count_dict:
-                        count_dict[value] = (data_limited[y_column] == value).sum()
-
+                count_dict = {value: (data_limited[y_column] == value).sum() for value in data_limited[y_column]}
                 data_limited = pd.DataFrame(list(count_dict.items()), columns=[y_column, "Кількість"])
                 x_column = y_column
                 y_column = "Кількість"
-
-            # Автоматичний вибір типу графіка
             if plot_type == "Автоматичний":
-                if data_limited[x_column].nunique() < 10:  # Кругова діаграма для категорій
-                    plot_type = "Кругова діаграма"
-                elif pd.api.types.is_numeric_dtype(data_limited[y_column]):
-                    plot_type = "Лінійний"
-                else:
-                    plot_type = "Стовпчастий"
-
+                    if data_limited[x_column].nunique() < 10:  # Кругова діаграма для категорій
+                        plot_type = "Кругова діаграма"
+                    elif pd.api.types.is_numeric_dtype(data_limited[y_column]):
+                        plot_type = "Лінійний"
+                    else:
+                        plot_type = "Стовпчастий"
             # Побудова графіка
-            try:
-                fig, ax = plt.subplots(figsize=(6, 4))
-                if plot_type == "Лінійний":
-                    ax.plot(data_limited[x_column], data_limited[y_column], marker="o")
-                    ax.set_xticks(range(len(data_limited[x_column])))
-                    ax.set_xticklabels(data_limited[x_column], rotation=45, ha="right")
-                elif plot_type == "Стовпчастий":
-                    ax.bar(data_limited[x_column], data_limited[y_column])
-                    ax.set_xticks(range(len(data_limited[x_column])))
-                    ax.set_xticklabels(data_limited[x_column], rotation=45, ha="right")
-                elif plot_type == "Точковий":
-                    ax.scatter(data_limited[x_column], data_limited[y_column])
-                    ax.set_xticks(range(len(data_limited[x_column])))
-                    ax.set_xticklabels(data_limited[x_column], rotation=45, ha="right")
-                elif plot_type == "Гістограма":
-                    ax.hist(data_limited[y_column], bins=10)
-                elif plot_type == "Кругова діаграма":
-                    data_grouped = data_limited.groupby(x_column)[y_column].sum()
-                    ax.pie(data_grouped, labels=data_grouped.index, autopct='%1.1f%%')
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+           
+            if plot_type == "Лінійний":
+                ax.plot(data_limited[x_column], data_limited[y_column], marker="o")
+            elif plot_type == "Стовпчастий":
+                ax.bar(data_limited[x_column], data_limited[y_column])
+            elif plot_type == "Точковий":
+                ax.scatter(data_limited[x_column], data_limited[y_column])
+            elif plot_type == "Гістограма":
+                ax.hist(data_limited[y_column], bins=10)
+            elif plot_type == "Кругова діаграма":
+                data_grouped = data_limited.groupby(x_column)[y_column].sum()
+                ax.pie(data_grouped, labels=data_grouped.index, autopct='%1.1f%%')
 
-                ax.set_title(f"{plot_type} графік: {y_column} vs {x_column}")
-                ax.set_xlabel(x_column)
-                ax.set_ylabel(y_column)
+            ax.set_title(f"{plot_type} графік: {y_column} vs {x_column}")
+            ax.set_xlabel(x_column)
+            ax.set_ylabel(y_column)
 
-                # Попередній перегляд у Canvas
-                if preview_only:
-                    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-                    if self.plot_preview_widget:
-                        self.plot_preview_widget.get_tk_widget().destroy()
-                    self.plot_preview_widget = FigureCanvasTkAgg(fig, master=preview_canvas)
-                    self.plot_preview_widget.draw()
-                    self.plot_preview_widget.get_tk_widget().grid(row=0, column=0, sticky="nsew")
-                    plt.close(fig)
-                else:
-                    plt.show()
+            # Попередній перегляд у Canvas
+            if preview_only and preview_canvas:
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                if self.plot_preview_widget:
+                    self.plot_preview_widget.get_tk_widget().destroy()
+                self.plot_preview_widget = FigureCanvasTkAgg(fig, master=preview_canvas)
+                self.plot_preview_widget.draw()
+                self.plot_preview_widget.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+                plt.close(fig)
+            else:
+                plt.show()
 
-
-            except Exception as e:
-                messagebox.showerror("Помилка", f"Не вдалося побудувати графік: {e}")
-
+        except Exception as e:
+            messagebox.showerror("Помилка", f"Не вдалося побудувати графік: {e}")
+            
     def apply_widget_styles(self):
         """
         Застосовує стилі до різних віджетів програми.
